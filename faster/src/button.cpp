@@ -3,6 +3,14 @@
 // RGB definitions
 //****************
 
+const float Interactive::PI = std::acos(0) * 2;
+const float Interactive::DEGRADCONST = PI/180;
+const float Interactive::RADDEGCONST = 180/PI;
+
+float Interactive::degToRad(float const& deg) {return deg * DEGRADCONST;}
+
+float Interactive::radToDeg(float const& rad) {return rad * RADDEGCONST;}
+
 sf::Color Interactive::hexColor(std::string hex){
     if(hex.length() == 7 && hex[0] == '#'){
         hex.erase(0,1);
@@ -18,7 +26,7 @@ sf::Color Interactive::hexColor(std::string hex){
     }
 }
 
-bool Interactive::inCircle(sf::CircleShape const& circle, sf::Vector2i const& point){
+bool Interactive::inCircle(sf::CircleShape const& circle, sf::Vector2f const& point){
     sf::Vector2f delta = circle.getPosition() - sf::Vector2f(point);
     return std::pow(delta.x,2) + std::pow(delta.y, 2) <= std::pow(circle.getRadius(), 2);
 }
@@ -46,16 +54,18 @@ void Interactive::Button::centreText(){
 
 void Interactive::Button::update(sf::RenderWindow &window, sf::Event &event){
     if (mouseIsOver(window)) {
-        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left){
-            state = PRESSED;
-            actionTarget(this);
-        } else if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left){
-            state = HOVER;
-        } else if (state != PRESSED)
-            state = HOVER;
+        if (sf::Mouse::isButtonPressed(sf::Mouse::Left)){
+            if (state != PRESSED) state = PRESSED;
+        } else {
+            if (state==PRESSED){onAction();}
+            if (state != HOVER) state = HOVER;
+        }
+    } else{
+        if (!sf::Mouse::isButtonPressed(sf::Mouse::Left)){
+            if (state ==PRESSED) onAction();
+            state = LAZY;
+        }
     }
-    else
-        if (state != PRESSED) state = LAZY;
     switch (state)
     {
     case PRESSED :
@@ -72,16 +82,6 @@ void Interactive::Button::update(sf::RenderWindow &window, sf::Event &event){
     }
 }
 
-
-// void Interactive::Button::update(sf::RenderWindow &window, sf::Event &event){
-//     if (mouseIsOver(window) && event.type == sf::Event::MouseButtonPressed){
-//         if (event.mouseButton.button == sf::Mouse::Left)
-//             if (!pressed) pressed = true;
-//             actionTarget(this);
-//     } else if (event.type == sf::Event::MouseButtonReleased)
-//         if (pressed) pressed = false;
-    
-// }
 
 void Interactive::Button::setTextColor(std::string const& colorHex){text.setFillColor(hexColor(colorHex));}
 
@@ -126,12 +126,15 @@ void Interactive::RoundedButton::draw(sf::RenderWindow &renderTarget){
     renderTarget.draw(text);
 }
 
+void Interactive::RoundedButton::onAction(){actionTarget(this);}
+
 
 bool Interactive::RoundedButton::mouseIsOver(sf::RenderWindow &window){
     sf::Vector2i mousePos(sf::Mouse::getPosition(window).x, 
                         sf::Mouse::getPosition(window).y);
-    return (inCircle(lhs, mousePos) || inCircle(rhs, mousePos) 
-        || rect.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y));
+    sf::Vector2f envPos = window.mapPixelToCoords(mousePos);
+    return (inCircle(lhs, envPos) || inCircle(rhs, envPos) 
+        || rect.getGlobalBounds().contains(envPos));
     
 }
 
@@ -158,10 +161,15 @@ void Interactive::CircleButton::draw(sf::RenderWindow &window){
     window.draw(circ);
     window.draw(text);
 }
+
+void Interactive::CircleButton::onAction(){actionTarget(this);}
+
+
 bool Interactive::CircleButton::mouseIsOver(sf::RenderWindow &window){
     sf::Vector2i mousePos(sf::Mouse::getPosition(window).x, 
                     sf::Mouse::getPosition(window).y);
-    return inCircle(circ, mousePos);
+    sf::Vector2f envPos = window.mapPixelToCoords(mousePos);
+    return inCircle(circ, envPos);
 }  
 
 void Interactive::CircleButton::setColor(sf::Color const& color){circ.setFillColor(color);}
@@ -169,4 +177,93 @@ void Interactive::CircleButton::setColor(sf::Color const& color){circ.setFillCol
 void Interactive::CircleButton::setPosition(sf::Vector2f const& position){
     circ.setPosition(position);
     text.setPosition(position);
+}
+
+//*********************
+// Pendulum definitions
+//*********************
+
+std::function<void(Interactive::Button*)> Interactive::Pendulum::actionTarget = [](Interactive::Button *button){button->style.fontSize=0;};
+
+Interactive::Pendulum::Pendulum(Style const& style, std::string const& stickCol_, std::string const& anchorCol_) 
+    : Button(style, "", actionTarget), stickCol(hexColor(stickCol_)), anchorCol(hexColor(anchorCol_)){
+    /// Anchor
+    anchor.setRadius(10);
+    anchor.setOrigin(anchor.getRadius(), anchor.getRadius());
+    anchor.setFillColor(anchorCol);
+    /// Stick
+    stick.setSize(sf::Vector2f(10, style.size.x));
+    stick.setOrigin(5,0);
+    stick.setFillColor(stickCol);
+    /// Anchor
+    ball.setRadius(style.size.y);
+    ball.setOrigin(ball.getRadius(), ball.getRadius());
+    ball.setFillColor(style.color1);
+    }
+void Interactive::Pendulum::rotate(float const& theta){
+    ballTransform.rotate(theta, anchor.getPosition());
+    stick.rotate(theta);
+}
+
+void Interactive::Pendulum::setRotation(float const& theta){
+    ballTransform.rotate(theta - stick.getRotation(),anchor.getPosition());
+    stick.setRotation(theta);
+}
+
+void Interactive::Pendulum::setPosition(sf::Vector2f const& position){
+    anchor.setPosition(position);
+    stick.setPosition(position);
+    float stickRotation = 90-stick.getRotation();
+    sf::Vector2f anchorToBall = sf::Vector2f(style.size.x * std::cos(degToRad(stickRotation)),
+                                            style.size.x * std::sin(degToRad(stickRotation)));
+    ball.setPosition(position+anchorToBall);
+}
+
+void Interactive::Pendulum::setColor(sf::Color const& color){
+    ball.setFillColor(color);
+}
+
+bool Interactive::Pendulum::mouseIsOver(sf::RenderWindow &window){
+    sf::Vector2i mousePos(sf::Mouse::getPosition(window).x, 
+                    sf::Mouse::getPosition(window).y);
+    sf::Vector2f envPos = window.mapPixelToCoords(mousePos);
+    return inCircle(ball, envPos);
+}
+
+void Interactive::Pendulum::draw(sf::RenderWindow &window){
+    window.draw(stick);
+    window.draw(anchor);
+    window.draw(ball, ballTransform);
+}
+
+void Interactive::Pendulum::mouseAngleTransform(sf::RenderWindow const& window){
+    sf::Vector2i mousePos(sf::Mouse::getPosition(window).x, 
+                    sf::Mouse::getPosition(window).y);
+    sf::Vector2f envPos = window.mapPixelToCoords(mousePos);
+    envPos = sf::Vector2f(envPos.x, -envPos.y);
+    sf::Vector2f anchorPos = sf::Vector2f(anchor.getPosition().x, -anchor.getPosition().y);
+    envPos = envPos - anchorPos;
+    float theta = angle(envPos, downVector);
+    float realAngle;
+    if (envPos.x >= 0){
+        realAngle = 360 -  theta;
+    } else if (envPos.x <= 0){
+        realAngle = theta;
+    } 
+    setRotation(realAngle);
+}
+
+void Interactive::Pendulum::updatePendulum(sf::RenderWindow& window, sf::Event &event, bool debug){
+    tMinsOne = state;
+    update(window, event);
+    if (state == PRESSED){
+        mouseAngleTransform(window);
+    }
+    if (debug) std::cout << state << "\n";
+}
+void Interactive::Pendulum::onAction(){int a= 0;}  
+
+std::ostream& operator<<(std::ostream& out, sf::Color const& target){
+    out << "Red : " << (int)target.r << " Green : " << (int)target.g << " Blue : " << (int)target.b;
+    return out;
 }

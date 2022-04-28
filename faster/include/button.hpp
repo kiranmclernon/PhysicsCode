@@ -11,14 +11,22 @@
 
 
 class Interactive{
+    static const float  PI;
+    static const float  DEGRADCONST;
+    static const float RADDEGCONST;
+    static inline float degToRad(float const& deg);
+    static inline float radToDeg(float const& rad);
     static sf::Color hexColor(std::string hex);
-    static bool inCircle(sf::CircleShape const& circle, sf::Vector2i const& point);
-    template <typename T> 
-    static float angle(sf::Vector2<T> const& lhs, sf::Vector2<T> const& rhs){
-        double lhsMag = std::sqrt(lhs.x*lhs.x + lhs.y*lhs.y);
-        double rhsMag = std::sqrt(rhs.x*rhs.x + rhs.y*rhs.y);
-        return (lhs.x * rhs.x + lhs.y * rhs.y) / (lhsMag * rhsMag);
+    static bool inCircle(sf::CircleShape const& circle, sf::Vector2f const& point);
+    template <typename T, typename D> 
+    static float angle(sf::Vector2<T> const& lhs, sf::Vector2<D> const& rhs){
+        float lhsMag = std::sqrt(lhs.x*lhs.x + lhs.y*lhs.y);
+        float rhsMag = std::sqrt(rhs.x*rhs.x + rhs.y*rhs.y);
+        float cosTheta =  (lhs.x * rhs.x + lhs.y * rhs.y) / (lhsMag * rhsMag);
+        return radToDeg(std::acos(cosTheta));
+
     }
+
 public:
     struct Style{
         template<typename T>
@@ -56,34 +64,63 @@ public:
         virtual void draw(sf::RenderWindow &renderTarget) = 0;
         virtual bool mouseIsOver(sf::RenderWindow &window) = 0;
         virtual void setColor(sf::Color const& color) = 0;
+        virtual void onAction() = 0;
         void setColor(std::string const& colorHex);
         void setTextColor(std::string const& colorHex);
         void centreText();
         void update(sf::RenderWindow &window, sf::Event &event);
     };
     struct RoundedButton : public Button{
+    private:
         sf::RectangleShape rect;
         sf::CircleShape lhs, rhs;
         sf::Transform lhsTransform, rhsTransform;
+    public:
         RoundedButton(Style const& style, std::string const& text_, std::function<void(Button*)>& actionTarget_);
         void setPosition(sf::Vector2f const& position);
+        void onAction();
         void rotate(float const& theta);
         void draw(sf::RenderWindow &renderTarget);
         bool mouseIsOver(sf::RenderWindow &window);
         void setColor(sf::Color const& color);
     };
     struct CircleButton : public Button{
+    private:
         sf::CircleShape circ;
+    public:
         CircleButton(Style const& style, std::string const& text_, std::function<void(Button*)>& actionTarget_);
         void rotate(float const& theta);
         void draw(sf::RenderWindow &renderTarget);
+        void onAction();
         bool mouseIsOver(sf::RenderWindow &window);
         void setColor(sf::Color const& color);
         void setPosition(sf::Vector2f const& position);
     };
-    struct PendulumPoint : public Button{
-        
+    struct Pendulum : public Button{
+    private:
+        sf::RectangleShape stick;
+        sf::CircleShape anchor;
+        sf::CircleShape ball;
+        sf::Color stickCol;
+        sf::Color anchorCol;
+        Interactive::buttonState tMinsOne;
+        sf::Transform ballTransform;
+    public:
+        const sf::Vector2f downVector = sf::Vector2f(0,-1);
+        static std::function<void(Button*)> actionTarget;
+        Pendulum(Style const& style, std::string const& stickCol_, std::string const& anchorCol_);
+        void rotate(float const& theta);
+        void setPosition(sf::Vector2f const& position);
+        void setColor(sf::Color const& color);
+        bool mouseIsOver(sf::RenderWindow &window);
+        void onAction();
+        void draw(sf::RenderWindow &window);
+        void mouseAngleTransform(sf::RenderWindow const& window);
+        void updatePendulum(sf::RenderWindow& window, sf::Event &event, bool debug);
+        void setRotation(float const& theta);
     };
 };
+
+std::ostream& operator<<(std::ostream& out, sf::Color const& target);
 
 #endif
