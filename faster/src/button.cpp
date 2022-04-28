@@ -203,7 +203,7 @@ Interactive::Pendulum::Pendulum(Style const& style, std::string const& stickCol_
     theta = 0;
     thetaDot = 0;
     thetaDoubleDot = 0;
-    stickRadius = style.size.x/1000;
+    stickRadius = style.size.x/150;
     }
 
 void Interactive::Pendulum::rotate(float const& angle){
