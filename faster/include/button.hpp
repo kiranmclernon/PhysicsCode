@@ -104,7 +104,11 @@ public:
         sf::Color stickCol;
         sf::Color anchorCol;
         Interactive::buttonState tMinsOne;
-        sf::Transform ballTransform;
+        static constexpr double g = 9.8;
+        float theta;
+        float thetaDot;
+        float thetaDoubleDot;
+        float stickRadius;
     public:
         const sf::Vector2f downVector = sf::Vector2f(0,-1);
         static std::function<void(Button*)> actionTarget;
@@ -118,6 +122,9 @@ public:
         void mouseAngleTransform(sf::RenderWindow const& window);
         void updatePendulum(sf::RenderWindow& window, sf::Event &event, bool debug);
         void setRotation(float const& theta);
+        void setTheta();
+        void physicsUpdate(float const& time);
+        float getTheta() const;
     };
 };
 

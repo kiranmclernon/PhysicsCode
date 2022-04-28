@@ -56,7 +56,7 @@ void Interactive::Button::update(sf::RenderWindow &window, sf::Event &event){
     if (mouseIsOver(window)) {
         if (sf::Mouse::isButtonPressed(sf::Mouse::Left)){
             if (state != PRESSED) state = PRESSED;
-        } else {
+        } else if(!sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
             if (state==PRESSED){onAction();}
             if (state != HOVER) state = HOVER;
         }
@@ -199,15 +199,37 @@ Interactive::Pendulum::Pendulum(Style const& style, std::string const& stickCol_
     ball.setRadius(style.size.y);
     ball.setOrigin(ball.getRadius(), ball.getRadius());
     ball.setFillColor(style.color1);
+    /// Angles
+    theta = 0;
+    thetaDot = 0;
+    thetaDoubleDot = 0;
+    stickRadius = style.size.x/1000;
     }
-void Interactive::Pendulum::rotate(float const& theta){
-    ballTransform.rotate(theta, anchor.getPosition());
-    stick.rotate(theta);
+
+void Interactive::Pendulum::rotate(float const& angle){
+    stick.rotate(angle);
+    float stickRotation = stick.getRotation();
+    sf::Vector2f anchorToBall = sf::Vector2f(style.size.x * std::sin(degToRad(-stickRotation)),
+                                            style.size.x * std::cos(degToRad(-stickRotation)));
+    ball.setPosition(stick.getPosition()+anchorToBall);
 }
 
-void Interactive::Pendulum::setRotation(float const& theta){
-    ballTransform.rotate(theta - stick.getRotation(),anchor.getPosition());
-    stick.setRotation(theta);
+
+void Interactive::Pendulum::setTheta(){
+    if (stick.getRotation()>180) theta=  degToRad(stick.getRotation() - 360);
+    else theta =  degToRad(stick.getRotation());
+    thetaDot = 0;
+    thetaDoubleDot = 0;
+}
+
+float Interactive::Pendulum::getTheta() const {return theta;}
+
+void Interactive::Pendulum::setRotation(float const& angle){
+    stick.setRotation(angle);
+    float stickRotation = stick.getRotation();
+    sf::Vector2f anchorToBall = sf::Vector2f(style.size.x * std::sin(degToRad(-stickRotation)),
+                                            style.size.x * std::cos(degToRad(-stickRotation)));
+    ball.setPosition(stick.getPosition()+anchorToBall);
 }
 
 void Interactive::Pendulum::setPosition(sf::Vector2f const& position){
@@ -233,7 +255,7 @@ bool Interactive::Pendulum::mouseIsOver(sf::RenderWindow &window){
 void Interactive::Pendulum::draw(sf::RenderWindow &window){
     window.draw(stick);
     window.draw(anchor);
-    window.draw(ball, ballTransform);
+    window.draw(ball);
 }
 
 void Interactive::Pendulum::mouseAngleTransform(sf::RenderWindow const& window){
@@ -250,7 +272,7 @@ void Interactive::Pendulum::mouseAngleTransform(sf::RenderWindow const& window){
     } else if (envPos.x <= 0){
         realAngle = theta;
     } 
-    setRotation(realAngle);
+    rotate(realAngle-stick.getRotation());
 }
 
 void Interactive::Pendulum::updatePendulum(sf::RenderWindow& window, sf::Event &event, bool debug){
@@ -262,6 +284,16 @@ void Interactive::Pendulum::updatePendulum(sf::RenderWindow& window, sf::Event &
     if (debug) std::cout << state << "\n";
 }
 void Interactive::Pendulum::onAction(){int a= 0;}  
+
+void Interactive::Pendulum::physicsUpdate(float const& time){
+    float tempTheta = theta;
+    thetaDoubleDot = -g/stickRadius * std::sin(theta);
+    thetaDot = thetaDot + thetaDoubleDot * time;
+    theta = theta + thetaDot * time;
+    setRotation(radToDeg(theta));
+}
+
+
 
 std::ostream& operator<<(std::ostream& out, sf::Color const& target){
     out << "Red : " << (int)target.r << " Green : " << (int)target.g << " Blue : " << (int)target.b;
